@@ -1,0 +1,39 @@
+# --- Stage 1: Builder ---
+# Use a full-featured Python image to install dependencies
+FROM python:3.11-slim as builder
+
+# Set the working directory
+WORKDIR /app
+
+# Install poetry - a dependency management tool
+RUN pip install poetry
+
+# Copy only the files needed for dependency installation
+COPY poetry.lock pyproject.toml ./
+
+# Install dependencies without installing the main package, and without a virtual env
+RUN poetry install --no-root --no-dev
+
+# --- Stage 2: Runner ---
+# Use a slim Python image for the final application
+FROM python:3.11-slim
+
+# Set a non-root user for security
+RUN useradd --create-home appuser
+WORKDIR /home/appuser
+USER appuser
+
+# Copy the installed dependencies from the builder stage
+COPY --from=builder /app/.venv /home/appuser/.venv
+
+# Set the path to include the virtual environment's binaries
+ENV PATH="/home/appuser/.venv/bin:$PATH"
+
+# Copy the application code
+COPY main.py .
+
+# Expose the port the app will run on
+EXPOSE 8000
+
+# Command to run the application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
